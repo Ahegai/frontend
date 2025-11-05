@@ -1,0 +1,78 @@
+import { defineStore } from 'pinia'
+import api from '@/api/axios'
+
+export const useUsersStore = defineStore('users', {
+  state: () => ({
+    items: [],
+    loading: false,
+    error: null,
+  }),
+
+  actions: {
+    async fetchAll () {
+      this.loading = true
+      this.error = null
+      try {
+        const { data } = await api.get('/users')
+        this.items = Array.isArray(data) ? data : []
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async fetchOne (id) {
+      try {
+        const { data } = await api.get(`/users/${id}`)
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      }
+    },
+
+    async create (payload) {
+      try {
+        const { data } = await api.post('/users', payload)
+        this.items.push(data)
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      }
+    },
+
+    async update (id, payload) {
+      try {
+        const { data } = await api.patch(`/users/${id}`, payload)
+        const idx = this.items.findIndex(i => i.id === data.id)
+        if (idx === -1) {
+          this.items.push(data)
+        } else {
+          this.items.splice(idx, 1, data)
+        }
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      }
+    },
+
+    async remove (id) {
+      try {
+        await api.delete(`/users/${id}`)
+        const idx = this.items.findIndex(i => i.id === id)
+        if (idx !== -1) {
+          this.items.splice(idx, 1)
+        }
+        return true
+      } catch (error) {
+        this.error = error
+        throw error
+      }
+    },
+  },
+})
