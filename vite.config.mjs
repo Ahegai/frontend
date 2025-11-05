@@ -16,11 +16,11 @@ import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    VueRouter(),
-    Layouts(),
     Vue({
       template: { transformAssetUrls },
     }),
+    VueRouter(),
+    Layouts(),
     // https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin#readme
     Vuetify({
       autoImport: true,
@@ -51,7 +51,12 @@ export default defineConfig({
       vueTemplate: true,
     }),
     electron({
-      entry: 'electron/main.js',
+      main: {
+        entry: 'electron/main.js',
+      },
+      preload: {
+        input: 'electron/preload.js',
+      },
     }),
   ],
   optimizeDeps: {

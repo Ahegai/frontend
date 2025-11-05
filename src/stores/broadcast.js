@@ -1,119 +1,102 @@
+// src/stores/broadcast.js
 import { defineStore } from 'pinia'
-import api from '@/api/axios'
 
-/*
-  Broadcast API
-
-  Example GET /broadcast response:
-  [
-    {
-      "id": 42,
-      "message": "Hello everyone",
-      "total_recipients": 120,
-      "sent_at": "2025-10-09T12:34:56.000Z",
-      "sent_by_user": { "id": 3, "username": "admin" },
-      "filter_country": { "id": 1, "title": "USA" },
-      "filter_event": { "id": 7, "title": "Conference 2025" }
-    },
-    ...
-  ]
-
-*/
+// API теперь будет доступно глобально через preload
+const api = window.electronAPI
 
 export const useBroadcastStore = defineStore('broadcast', {
   state: () => ({
-    items: [],
-    loading: false,
-    sending: false,
-    error: null,
+    logs: [], // Логи рассылки
+    status: 'idle', // 'idle', 'running', 'complete', 'error'
+    total: 0,
+    success: 0,
+    errors: 0,
   }),
 
   actions: {
-    async fetchAll () {
-      this.loading = true
-      this.error = null
+    /**
+     * 1. Запуск рассылки
+     */
+    async sendBroadcast (payload) {
+      // payload = { message: '...', countryId: '...' }
+      // 'media' пока не реализован в UI, но можно добавить
+
       try {
-        const { data } = await api.get('/broadcast')
-        this.items = Array.isArray(data) ? data : []
-        return data
+        this.status = 'running'
+        this.logs = []
+        this.total = 0
+        this.success = 0
+        this.errors = 0
+
+        // Инициализируем слушатель статуса (на всякий случай)
+        this.initializeListeners()
+
+        console.log('Store: Вызов electronAPI.invoke("whatsapp:start-broadcast")')
+        const response = await api.invoke('whatsapp:start-broadcast', payload)
+
+        if (!response.success) {
+          throw new Error(response.message)
+        }
+
+        // Ответ "запущено" пришел.
+        // Дальнейший статус придет от слушателей
+        this.logs.push(`[INFO] ${response.message}`)
       } catch (error) {
-        this.error = error
-        throw error
-      } finally {
-        this.loading = false
+        console.error('Ошибка sendBroadcast:', error)
+        this.status = 'error'
+        this.logs.push(`[ERROR] ${error.message}`)
       }
     },
 
-    async fetchOne (id) {
-      this.error = null
-      try {
-        const { data } = await api.get(`/broadcast/${id}`)
-        return data
-      } catch (error) {
-        this.error = error
-        throw error
-      }
-    },
+    /**
+     * 2. Настройка слушателей Electron
+     */
+    initializeListeners () {
+      // Используем api.on, но не будем дублировать, если уже вызвано
+      // Можно добавить флаг, как в whatsapp.js
 
-    async send (payload) {
-      this.sending = true
-      this.error = null
-      try {
-        let res
-        // if caller passed FormData (file upload), send multipart/form-data
-        if (typeof FormData !== 'undefined' && payload instanceof FormData) {
-          res = await api.post('/broadcast/send', payload, { headers: { 'Content-Type': 'multipart/form-data' } })
-        } else {
-          // otherwise send JSON.
-          // If payload contains media.buffer as binary (ArrayBuffer/TypedArray/Buffer),
-          // convert it to base64 string so backend receives { buffer, mime, filename }.
-          if (payload && payload.media && payload.media.buffer) {
-            const buf = payload.media.buffer
-            // if it's already a string, assume base64 and leave as-is
-            if (typeof buf !== 'string') {
-              // Node Buffer
-              if (typeof Buffer !== 'undefined' && Buffer.isBuffer(buf)) {
-                payload.media.buffer = buf.toString('base64')
-              } else {
-                // ArrayBuffer or TypedArray
-                let uint8
-                if (ArrayBuffer.isView(buf)) {
-                  uint8 = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
-                } else if (buf instanceof ArrayBuffer) {
-                  uint8 = new Uint8Array(buf)
-                }
+      // Очищаем старые слушатели на всякий случай
+      api.removeAllListeners('whatsapp:broadcast-status')
 
-                if (uint8) {
-                  // convert to binary string in chunks to avoid stack issues
-                  const CHUNK_SIZE = 1 << 15
-                  let binary = ''
-                  for (let i = 0; i < uint8.length; i += CHUNK_SIZE) {
-                    const slice = uint8.subarray(i, i + CHUNK_SIZE)
-                    binary += String.fromCharCode.apply(null, slice)
-                  }
-                  // btoa is available in browsers; encode to base64
-                  payload.media.buffer = btoa(binary)
-                }
-              }
-            }
+      api.on('whatsapp:broadcast-status', event => {
+        // event = { type: 'start', total: 10 }
+        // event = { type: 'progress', phone: '...', status: 'success' }
+        // event = { type: 'progress', phone: '...', status: 'error', message: '...' }
+        // event = { type: 'complete', successCount: 9, errorCount: 1 }
+        // event = { type: 'error', message: '...' }
+
+        switch (event.type) {
+          case 'start': {
+            this.status = 'running'
+            this.total = event.total
+            this.logs.push(`[START] Рассылка запущена. Всего клиентов: ${event.total}`)
+            break
           }
 
-          // Support media: { url } or media: { buffer: base64, mime, filename }
-          res = await api.post('/broadcast/send', payload)
-        }
+          case 'progress': {
+            if (event.status === 'success') {
+              this.success++
+              this.logs.push(`[OK] ${event.phone}`)
+            } else {
+              this.errors++
+              this.logs.push(`[FAIL] ${event.phone}: ${event.message}`)
+            }
+            break
+          }
 
-        const data = res.data
-        // push new broadcast to items if it looks like an object with id
-        if (data && data.id) {
-          this.items.unshift(data)
+          case 'complete': {
+            this.status = 'complete'
+            this.logs.push(`[DONE] Рассылка завершена. Успешно: ${event.successCount}, Ошибок: ${event.errorCount}`)
+            break
+          }
+
+          case 'error': {
+            this.status = 'error'
+            this.logs.push(`[FATAL ERROR] ${event.message}`)
+            break
+          }
         }
-        return data
-      } catch (error) {
-        this.error = error
-        throw error
-      } finally {
-        this.sending = false
-      }
+      })
     },
   },
 })
