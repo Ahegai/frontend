@@ -9,6 +9,7 @@ import VueRouter from 'unplugin-vue-router/vite'
 // Utilities
 import { defineConfig } from 'vite'
 
+import electron from 'vite-plugin-electron'
 import Layouts from 'vite-plugin-vue-layouts-next'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
@@ -48,6 +49,9 @@ export default defineConfig({
         enabled: true,
       },
       vueTemplate: true,
+    }),
+    electron({
+      entry: 'electron/main.js',
     }),
   ],
   optimizeDeps: {
