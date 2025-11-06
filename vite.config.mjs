@@ -16,12 +16,11 @@ import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    VueRouter(),
+    Layouts(),
     Vue({
       template: { transformAssetUrls },
     }),
-    VueRouter(),
-    Layouts(),
-    // https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin#readme
     Vuetify({
       autoImport: true,
       styles: {
@@ -50,6 +49,8 @@ export default defineConfig({
       },
       vueTemplate: true,
     }),
+    // 👇 ИСПРАВЛЕНИЕ: 'main' должен исключать 'node_modules',
+    // а 'preload' - НЕТ (чтобы он мог собрать `import`)
     electron({
       main: {
         entry: 'electron/main.js',

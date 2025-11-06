@@ -14,8 +14,6 @@ export const useWhatsappStore = defineStore('whatsapp', {
   }),
 
   actions: {
-    // === Команды (Vue -> Electron) ===
-
     /**
      * 1. Запуск инициализации
      * (Замена POST /whatsapp/auth)
@@ -62,9 +60,16 @@ export const useWhatsappStore = defineStore('whatsapp', {
       }
     },
 
-    // ... (можно добавить getInfo, если нужно)
-
-    // === Слушатели (Electron -> Vue) ===
+    async getInfo () {
+      try {
+        const response = await api.invoke('whatsapp:info')
+        this.info = response.data
+        return this.info
+      } catch (error) {
+        console.log('Ошибка', error)
+        return null
+      }
+    },
 
     /**
      * 3. Настройка слушателей Electron

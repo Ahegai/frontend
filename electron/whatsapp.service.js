@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import qrcode from 'qrcode'
-import { LocalAuth, MessageMedia, Client as WhatsAppClient } from 'whatsapp-web.js'
+import pkg from 'whatsapp-web.js'
+const { LocalAuth, MessageMedia, Client: WhatsAppClient } = pkg
 
 /**
  * Сервис для управления WhatsApp клиентом для Electron.

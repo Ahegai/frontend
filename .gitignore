@@ -1,6 +1,8 @@
 .DS_Store
 node_modules
 /dist
+.wwebjs_cache
+sessions
 
 # local env files
 .env.local

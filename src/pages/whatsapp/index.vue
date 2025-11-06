@@ -1,81 +1,93 @@
 <template>
   <v-container>
-    <v-card v-if="step === 1" class="mt-12">
-      <v-card-title class="bg-indigo-darken-1">Авторизация в WhatsApp</v-card-title>
-      <v-card-text class="d-flex ga-4 align-center justify-space-between">
-        <v-list class="bg-transparent" density="comfortable">
-          <v-list-item v-for="(step, index) in steps" :key="index" class="px-0">
-            <template #prepend>
-              <div
-                class="d-flex align-center justify-center rounded-circle border border-grey-darken-1"
-                style="width: 28px; height: 28px;"
-              >
-                <span class="text-caption font-weight-bold">{{ index + 1 }}</span>
-              </div>
-            </template>
-            <v-list-item-title class="text-body-1 ml-3">{{ step }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
+    <v-row>
+      <v-col>
+        <h1 class="text-h4">WhatsApp</h1>
+      </v-col>
+    </v-row>
 
-        <div class="text-center my-6">
-          <v-img
-            v-if="qr"
-            alt="QR code"
-            class="mx-auto rounded-lg border border-grey-lighten-2"
-            :src="qr"
-            width="190px"
-          />
-          <v-progress-circular
-            v-else
-            class="mr-10"
-            color="green-lighten-1"
-            indeterminate
-            size="64"
-          />
-        </div>
-      </v-card-text>
-    </v-card>
+    <v-row>
+      <v-col cols="12" md="6">
+        <v-card>
+          <v-card-title>Статус</v-card-title>
+          <v-card-text>
+            <v-alert v-if="error" class="mb-4" type="error">
+              {{ error }}
+            </v-alert>
+
+            <div class="d-flex align-center">
+              <v-icon
+                class="mr-2"
+                :color="isReady ? 'success' : (status === 'initializing' ? 'warning' : 'error')"
+              >
+                {{ isReady ? 'mdi-check-circle' : (status === 'initializing' ? 'mdi-spin mdi-loading' : 'mdi-alert-circle') }}
+              </v-icon>
+              <span class="text-h6">
+                {{ isReady ? 'Подключено' : (status === 'initializing' ? 'Инициализация...' : 'Отключено') }}
+              </span>
+            </div>
+
+            <v-btn
+              class="mt-4"
+              color="primary"
+              :disabled="isReady || status === 'initializing'"
+              @click="initAuth"
+            >
+              {{ isReady ? 'Подключено' : (status === 'initializing' ? 'В процессе...' : 'Подключить') }}
+            </v-btn>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" md="6">
+        <v-card v-if="qrCode">
+          <v-card-title>Отсканируйте QR-код</v-card-title>
+          <v-card-text class="text-center">
+            <v-img class="mx-auto" max-width="300" :src="qrCode" />
+            <p class="mt-4">Откройте WhatsApp на телефоне и отсканируйте код</p>
+          </v-card-text>
+        </v-card>
+
+        <v-card v-else-if="isReady">
+          <v-card-title>Готово к работе</v-card-title>
+          <v-card-text class="text-center">
+            <v-icon color="success" size="100">mdi-whatsapp</v-icon>
+            <p class="mt-4 text-h6">Клиент WhatsApp успешно подключен.</p>
+          </v-card-text>
+        </v-card>
+
+        <v-card v-else-if="status === 'initializing'">
+          <v-card-title>Ожидание...</v-card-title>
+          <v-card-text class="text-center">
+            <v-progress-circular color="primary" indeterminate size="64" />
+            <p class="mt-4">Запускаем WhatsApp, ожидаем QR-код...</p>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
 <script setup>
+  import { storeToRefs } from 'pinia'
+  // 1. ИМПОРТИРУЕМ 'computed' И 'onMounted'
+  import { computed, onMounted } from 'vue'
   import { useWhatsappStore } from '@/stores/whatsapp'
 
-  const store = useWhatsappStore()
-  const step = ref(1)
-  const qr = ref(null)
-  const router = useRouter()
+  const whatsappStore = useWhatsappStore()
+  const { qrCode, status, error } = storeToRefs(whatsappStore)
+  const { initAuth } = whatsappStore
 
-  const steps = [
-    'Откройте WhatsApp на своём телефоне',
-    'На Android нажмите Меню ⋮, на iPhone — Настройки ⚙️',
-    'Нажмите Связанные устройства, затем Связывание устройства',
-    'Отсканируйте QR-код для подтверждения',
-  ]
+  // (Старый SSE код connectSse/disconnectSse полностью удален, он не нужен)
 
-  async function startAuth () {
-    await fetch('http://localhost:3001/api/whatsapp/auth')
-    const source = new EventSource('http://localhost:3001/api/whatsapp/qr')
+  const isReady = computed(() => status.value === 'ready')
 
-    source.addEventListener('message', event => {
-      const data = JSON.parse(event.data)
-      qr.value = data.type === 'ready' ? null : data
-      if (data.type === 'ready') {
-        step.value = 2
-        router.push('/broadcast')
-      } else {
-        qr.value = data.data
-      }
-    })
-  }
-
-  onMounted(async () => {
-    if (store.connected) {
-      step.value = 2
-      router.push('/broadcast')
-    } else {
-      step.value = 1
-      await startAuth()
+  // 2. ВОЗВРАЩАЕМ АВТО-ЗАПУСК
+  //    Как только страница загрузится, вызываем initAuth
+  onMounted(() => {
+    // Проверяем, что мы еще не подключены и не в процессе
+    if (status.value !== 'ready' && status.value !== 'initializing') {
+      initAuth()
     }
   })
 </script>

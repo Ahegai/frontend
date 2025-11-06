@@ -44,6 +44,15 @@
           <v-form @submit.prevent="doSend">
             <v-textarea v-model="form.message" label="Сообщение" required rows="4" />
 
+            <v-row>
+              <v-col cols="6">
+                <v-text-field v-model="form.timing_from" label="Задержка (от)" required type="number" />
+              </v-col>
+              <v-col cols="6">
+                <v-text-field v-model="form.timing_for" label="Задержка (до)" required type="number" />
+              </v-col>
+            </v-row>
+
             <v-select
               v-model="form.filter_country_id"
               clearable
@@ -233,6 +242,10 @@
           message: form.message,
           filter_country_id: form.filter_country_id,
           filter_event_id: form.filter_event_id,
+          timing: {
+            from: form.timing_from,
+            for: form.timing_for,
+          },
           media: {
             buffer: base64,
             mime: file.type || 'application/octet-stream',
@@ -242,10 +255,18 @@
         await broadcast.send(payload)
       } else if (form.image_url) {
         // send JSON with media.url
-        await broadcast.send({ message: form.message, filter_country_id: form.filter_country_id, filter_event_id: form.filter_event_id, media: { url: form.image_url } })
+        await broadcast.send({ message: form.message, filter_country_id: form.filter_country_id, filter_event_id: form.filter_event_id, media: { url: form.image_url },
+                               timing: {
+                                 from: form.timing_from,
+                                 for: form.timing_for,
+                               } })
       } else {
         // text-only
-        await broadcast.send({ message: form.message, filter_country_id: form.filter_country_id, filter_event_id: form.filter_event_id })
+        await broadcast.send({ message: form.message, filter_country_id: form.filter_country_id, filter_event_id: form.filter_event_id,
+                               timing: {
+                                 from: form.timing_from,
+                                 for: form.timing_for,
+                               } })
       }
 
       sendDialog.value = false
@@ -264,7 +285,7 @@
     await events.fetchAll()
     // ensure whatsapp is connected before accessing broadcast page
     try {
-      const info = await whatsapp.fetchInfo()
+      const info = await whatsapp.getInfo()
       if (!info.pushname) {
         router.push('/whatsapp')
         return

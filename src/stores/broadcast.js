@@ -1,5 +1,10 @@
 // src/stores/broadcast.js
 import { defineStore } from 'pinia'
+import axios from '@/api/axios'
+
+import {
+  applyVariations,
+} from '@/utils/spintax.dictionary'
 
 // API теперь будет доступно глобально через preload
 const api = window.electronAPI
@@ -14,38 +19,96 @@ export const useBroadcastStore = defineStore('broadcast', {
   }),
 
   actions: {
+    async fetchAll () {
+      this.loading = true
+      this.error = null
+      try {
+        const { data } = await axios.get('/broadcast')
+        this.items = Array.isArray(data) ? data : []
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async fetchOne (id) {
+      this.error = null
+      try {
+        const { data } = await axios.get(`/broadcast/${id}`)
+        return data
+      } catch (error) {
+        this.error = error
+        throw error
+      }
+    },
+
     /**
      * 1. Запуск рассылки
      */
-    async sendBroadcast (payload) {
-      // payload = { message: '...', countryId: '...' }
-      // 'media' пока не реализован в UI, но можно добавить
-
+    async pushBroadcast (payload) {
       try {
-        this.status = 'running'
-        this.logs = []
-        this.total = 0
-        this.success = 0
-        this.errors = 0
-
-        // Инициализируем слушатель статуса (на всякий случай)
-        this.initializeListeners()
-
         console.log('Store: Вызов electronAPI.invoke("whatsapp:start-broadcast")')
         const response = await api.invoke('whatsapp:start-broadcast', payload)
-
         if (!response.success) {
           throw new Error(response.message)
         }
-
-        // Ответ "запущено" пришел.
-        // Дальнейший статус придет от слушателей
         this.logs.push(`[INFO] ${response.message}`)
+      } catch (error) {
+        console.error('Ошибка pushBroadcast:', error)
+        this.status = 'error'
+        this.logs.push(`[ERROR] ${error.message}`)
+      }
+    },
+
+    async send (payload) {
+      try {
+        this.status = 'running'
+        this.initializeListeners()
+        const response = await axios.post('/broadcast/clients', payload)
+        const clients = response.data.clients
+        // sendEvent('whatsapp:broadcast-status', { type: 'start', total: clients.length })
+        for (const client of clients) {
+          try {
+            const uniqueMessage = applyVariations(payload.message)
+            let mediaParam
+            if (payload.media) {
+              mediaParam = { ...payload.media }
+              if (typeof (payload.media).buffer === 'string') {
+                try {
+                  mediaParam.buffer = Buffer.from(
+                    (payload.media).buffer,
+                    'base64',
+                  )
+                } catch {
+                  // leave as-is; sendMessage will validate
+                }
+              }
+            }
+
+            this.pushBroadcast({
+              phone: client.phone,
+              message: uniqueMessage,
+              media: mediaParam,
+            })
+
+            const minDelay = payload.timing.from * 1000 // Минимальная задержка в миллисекундах (1 секунда)
+            const maxDelay = payload.timing.for * 1000 // Максимальная задержка в миллисекундах (10 секунд)
+            const randomDelay
+              = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay
+            await new Promise(res => setTimeout(res, randomDelay))
+          } catch {
+            console.log('failed to send')
+          }
+        }
       } catch (error) {
         console.error('Ошибка sendBroadcast:', error)
         this.status = 'error'
         this.logs.push(`[ERROR] ${error.message}`)
       }
+      // sendEvent('whatsapp:broadcast-status', { type: 'complete', successCount, errorCount })
     },
 
     /**

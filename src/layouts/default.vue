@@ -96,11 +96,14 @@
 
   onMounted(async () => {
     await aStore.fetchUser()
-    // await wStore.fetchInfo()
+    await wStore.checkStatus()
+    if (wStore.status === 'ready') {
+      await wStore.getInfo()
+    }
   })
 
   const wTitle = computed(() => {
-    if (wStore.connected) {
+    if (wStore.status === 'ready') {
       return `${wStore.info?.pushname}`
     }
     return 'Не подключён'

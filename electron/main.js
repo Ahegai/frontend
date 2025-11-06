@@ -1,6 +1,5 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url' // 👈 Для __dirname
-import axios from 'axios'
 // Используем import
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { WhatsAppService } from './whatsapp.service.js' // 👈 .js
@@ -9,8 +8,6 @@ import { WhatsAppService } from './whatsapp.service.js' // 👈 .js
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 // ===
-
-const API_BASE_URL = 'http://localhost:8000'
 
 let mainWindow
 const whatsappService = new WhatsAppService()
@@ -54,7 +51,7 @@ function setupIpcHandlers () {
     }
   })
 
-  ipcMain.handle('whatsapp:start-broadcast', async (event, { message, media, countryId }) => {
+  ipcMain.handle('whatsapp:start-broadcast', async (event, payload) => {
     // ... (вся логика 'whatsapp:start-broadcast' остается без изменений)
     console.log('IPC: Получена команда whatsapp:start-broadcast')
 
@@ -65,67 +62,23 @@ function setupIpcHandlers () {
       return { success: false, message: error.message }
     }
 
-    let clients = []
-    try {
-      const url = new URL('/api/clients', API_BASE_URL)
-      if (countryId) {
-        url.searchParams.append('country_id', countryId)
-      }
+    runBroadcast(payload)
 
-      console.log(`Запрос клиентов с: ${url.toString()}`)
-      const response = await axios.get(url.toString())
-      clients = response.data.data
-
-      if (!Array.isArray(clients) || clients.length === 0) {
-        throw new Error('API /clients не вернул список клиентов')
-      }
-    } catch (apiError) {
-      console.error('Ошибка получения клиентов с API:', apiError.message)
-      sendEventToVue('whatsapp:broadcast-status', { type: 'error', message: `Ошибка API: ${apiError.message}` })
-      return { success: false, message: `Ошибка API: ${apiError.message}` }
-    }
-
-    runBroadcast(clients, message, media, sendEventToVue)
-
-    return { success: true, message: `Рассылка запущена для ${clients.length} клиентов` }
+    return { success: true, message: `Рассылка запущена для клиентов` }
   })
 }
 
 // (Функция runBroadcast остается без изменений)
-async function runBroadcast (clients, message, media, sendEvent) {
-  sendEvent('whatsapp:broadcast-status', { type: 'start', total: clients.length })
-
-  let successCount = 0
-  let errorCount = 0
-
-  for (const client of clients) {
-    const phone = client.phone
-    if (!phone) {
-      errorCount++
-      sendEvent('whatsapp:broadcast-status', {
-        type: 'progress',
-        phone: 'N/A',
-        status: 'error',
-        message: 'У клиента нет номера',
-      })
-      continue
-    }
-
-    try {
-      await whatsappService.sendMessage(phone, message, media)
-      successCount++
-      sendEvent('whatsapp:broadcast-status', { type: 'progress', phone, status: 'success' })
-    } catch (sendError) {
-      errorCount++
-      console.error(`Ошибка отправки на ${phone}:`, sendError.message)
-      sendEvent('whatsapp:broadcast-status', { type: 'progress', phone, status: 'error', message: sendError.message })
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 3000))
+async function runBroadcast (payload) {
+  const phone = payload.phone
+  const message = payload.message
+  const media = payload.media
+  try {
+    await whatsappService.sendMessage(phone, message, media)
+    console.log('send')
+  } catch (sendError) {
+    console.error(`Ошибка отправки на ${phone}:`, sendError.message)
   }
-
-  console.log(`Рассылка завершена! Успешно: ${successCount}, Ошибок: ${errorCount}`)
-  sendEvent('whatsapp:broadcast-status', { type: 'complete', successCount, errorCount })
 }
 
 // --- Код создания окна Electron ---
@@ -135,10 +88,9 @@ function createWindow () {
     width: 1200,
     height: 800,
     webPreferences: {
-      // 👈 ВАЖНО: Указываем на .js
-      preload: path.join(__dirname, 'preload.js'),
+      // ✅ ИСПРАВЛЕНО: Путь идет "вверх" из 'electron' и "вниз" в 'dist-electron'
       contextIsolation: true,
-      nodeIntegration: false,
+      preload: path.join(__dirname, '/preload.cjs'),
     },
   })
 
