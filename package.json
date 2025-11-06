@@ -1,13 +1,14 @@
 {
   "name": "frontend",
   "private": true,
-  "type": "module",
   "version": "0.0.0",
+  "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build:frontend": "vite build",
-    "build:app": "npm run build:frontend && electron-builder",
+    "build:frontend": "vite build --config vite.config.mjs",
+    "build:electron": "vite build --config vite.electron.config.mjs",
+    "build:app": "npm run build:frontend && npm run build:electron && electron-builder",
     "preview": "vite preview",
     "lint": "eslint . --fix"
   },

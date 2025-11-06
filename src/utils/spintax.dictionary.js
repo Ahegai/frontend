@@ -5,7 +5,7 @@
 
 // src/utils/spintax.dictionary.ts (Обновленная версия)
 
-export const variationsDictionary: { [key: string]: string } = {
+export const variationsDictionary = {
   // --- Приветствия ---
   'Привет': '{Привет|Здравствуйте|Добрый день}',
   'Здравствуйте': '{Здравствуйте|Добрый день|Доброго времени суток}',
@@ -101,7 +101,7 @@ export const variationsDictionary: { [key: string]: string } = {
   '✉️': '{✉️|📧}',
 }
 
-function spinSingleVariation (variationString: string): string {
+function spinSingleVariation (variationString) {
   if (variationString.startsWith('{') && variationString.endsWith('}')) {
     const optionsString = variationString.slice(1, -1)
     const options = optionsString.split('|')
@@ -115,7 +115,7 @@ function spinSingleVariation (variationString: string): string {
 /**
  * Экранирует специальные символы для использования в RegExp.
  */
-function escapeRegExp (string: string): string {
+function escapeRegExp (string) {
   // Экранирует символы: . * + ? ^ $ { } ( ) | [ ] \
   return string.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
 }
@@ -123,7 +123,7 @@ function escapeRegExp (string: string): string {
 /**
  * Обрабатывает inline spintax конструкции {opt1|opt2} в тексте.
  */
-function processInlineSpintax (template: string): string {
+function processInlineSpintax (template) {
   const spunText = template
   const regex = /\{([^}]+?)\}/g // Нежадный поиск содержимого внутри {}
   let rebuiltString = ''
@@ -157,7 +157,7 @@ function processInlineSpintax (template: string): string {
 /**
  * Применяет вариации из словаря к тексту сообщения (регистронезависимо).
  */
-export function applyVariations (message: string): string {
+export function applyVariations (message) {
   let result = message
 
   // Сортируем ключи от самых длинных к самым коротким

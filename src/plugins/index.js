@@ -4,8 +4,8 @@
  * Automatically included in `./src/main.js`
  */
 
-import router from '@/router'
-import pinia from '@/stores'
+import router from '../router/index'
+import pinia from '../stores'
 // Plugins
 import vuetify from './vuetify'
 

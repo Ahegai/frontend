@@ -8,13 +8,13 @@
 import { createApp } from 'vue'
 
 // Plugins
-import { registerPlugins } from '@/plugins'
+import { registerPlugins } from '../src/plugins/index'
 
 // Components
 import App from './App.vue'
 
 // Styles
-import 'unfonts.css'
+// import 'unfonts.css'
 
 const app = createApp(App)
 
