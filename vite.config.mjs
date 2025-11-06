@@ -1,44 +1,49 @@
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
-// Plugins
 import AutoImport from 'unplugin-auto-import/vite'
 import Fonts from 'unplugin-fonts/vite'
 import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports } from 'unplugin-vue-router'
 import VueRouter from 'unplugin-vue-router/vite'
-// Utilities
 import { defineConfig } from 'vite'
-
+import electron from 'vite-plugin-electron'
 import Layouts from 'vite-plugin-vue-layouts-next'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     vue({
       template: { transformAssetUrls },
     }),
+
     VueRouter({
       dts: false,
     }),
+
     Layouts(),
+
     Vuetify({
       autoImport: true,
       styles: {
         configFile: 'src/styles/settings.scss',
       },
     }),
+
     Components({
       dts: false,
     }),
+
     Fonts({
       google: {
-        families: [{
-          name: 'Roboto',
-          styles: 'wght@100;300;400;500;700;900',
-        }],
+        families: [
+          {
+            name: 'Roboto',
+            styles: 'wght@100;300;400;500;700;900',
+          },
+        ],
       },
     }),
+
     AutoImport({
       imports: [
         'vue',
@@ -47,13 +52,23 @@ export default defineConfig({
           pinia: ['defineStore', 'storeToRefs'],
         },
       ],
-      eslintrc: {
-        enabled: true,
-      },
+      eslintrc: { enabled: true },
       vueTemplate: true,
       dts: false,
     }),
+    electron([
+      {
+        entry: 'electron/main.cjs',
+        vite: { build: { rollupOptions: { input: 'electron/main.cjs', external: ['electron'] } } },
+      },
+      {
+        entry: 'electron/preload.cjs',
+        format: 'cjs', // явно указываем CommonJS
+        vite: { build: { rollupOptions: { input: 'electron/preload.cjs', external: ['electron'] } } },
+      },
+    ]),
   ],
+
   optimizeDeps: {
     exclude: [
       'vuetify',
@@ -63,19 +78,16 @@ export default defineConfig({
       'unplugin-vue-router/data-loaders/basic',
     ],
   },
+
   define: { 'process.env': {} },
+
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('src', import.meta.url)),
     },
-    extensions: [
-      '.js',
-      '.json',
-      '.jsx',
-      '.mjs',
-      '.vue',
-    ],
+    extensions: ['.js', '.json', '.jsx', '.mjs', '.vue'],
   },
+
   server: {
     port: 3000,
   },

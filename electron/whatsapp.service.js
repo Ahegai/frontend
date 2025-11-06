@@ -1,15 +1,18 @@
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import chromeFinder from '@perfsee/chrome-finder'
+import { app } from 'electron'
+import puppeteer from 'puppeteer'
 import qrcode from 'qrcode'
 import pkg from 'whatsapp-web.js'
-const { LocalAuth, MessageMedia, Client: WhatsAppClient } = pkg
 
-/**
- * Сервис для управления WhatsApp клиентом для Electron.
- * Управляется из главного процесса (main.js).
- * Генерирует события (qr, ready, disconnected) через EventEmitter.
- */
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const { Client: WhatsAppClient, MessageMedia, LocalAuth } = pkg
+
 export class WhatsAppService extends EventEmitter {
   client = null
   isInitializing = false
@@ -20,32 +23,52 @@ export class WhatsAppService extends EventEmitter {
   constructor () {
     super()
     this.instanceId = Math.random().toString(36).slice(7)
-    this.logger.log(`[ID: ${this.instanceId}] WhatsAppService создан (режим Electron).`)
+    this.logger.log(`[ID: ${this.instanceId}] WhatsAppService создан.`)
   }
 
-  async initAuth () {
-    this.logger.log(`[ID: ${this.instanceId}] Начало инициализации`)
+  async initAuth (sessionsPath = null) {
     if (this.isReady || this.isInitializing) {
-      this.logger.log(`[ID: ${this.instanceId}] Инициализация уже запущена.`)
       return
     }
+    this.isInitializing = true
 
     try {
-      this.isInitializing = true
-      this.logger.log(`[ID: ${this.instanceId}] 🚀 Начинается инициализация...`)
+      // --- dataPath для LocalAuth ---
+      let dataPath = sessionsPath
+      if (!dataPath) {
+        dataPath = path.resolve(
+          app.isPackaged
+            ? path.join(process.resourcesPath, 'app.asar.unpacked', 'dist-electron', 'sessions')
+            : path.join(__dirname, 'sessions'),
+        )
+      }
+      if (!fs.existsSync(dataPath)) {
+        fs.mkdirSync(dataPath, { recursive: true })
+      }
 
+      // --- executablePath для Puppeteer ---
+      let executablePath = await chromeFinder()
+      if (!executablePath) {
+        // fallback на Chromium от Puppeteer
+        executablePath = puppeteer.executablePath()
+      }
+      this.logger.log(`[ID: ${this.instanceId}] Используем Chromium:`, executablePath)
+
+      // --- инициализация WhatsAppClient ---
       this.client = new WhatsAppClient({
-        authStrategy: new LocalAuth({ dataPath: 'sessions' }),
+        authStrategy: new LocalAuth({ dataPath }),
         puppeteer: {
+          executablePath,
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          timeout: 60_000,
         },
       })
 
       this.setupEventHandlers()
       await this.client.initialize()
     } catch (error) {
-      this.logger.error(`[ID: ${this.instanceId}] Критическая ошибка инициализации`, error)
+      this.logger.error(`[ID: ${this.instanceId}] Ошибка инициализации`, error)
       this.isInitializing = false
       this.isReady = false
       this.emit('error', error.message)
@@ -61,34 +84,25 @@ export class WhatsAppService extends EventEmitter {
     this.client.on('qr', async qr => {
       try {
         const qrImage = await qrcode.toDataURL(qr)
-        this.logger.log(`[ID: ${this.instanceId}] 📲 Сгенерирован QR-код.`)
         this.emit('qr', qrImage)
       } catch (error) {
-        this.logger.error(`[ID: ${this.instanceId}] Ошибка QR-кода`, error)
+        this.logger.error('Ошибка QR-кода', error)
       }
     })
 
     this.client.on('ready', () => {
-      this.logger.log(`[ID: ${this.instanceId}] 🔌 Клиент WhatsApp готов!`)
       this.isReady = true
       this.isInitializing = false
       this.emit('ready')
     })
 
-    this.client.on('authenticated', () => {
-      this.logger.log(`[ID: ${this.instanceId}] ✅ WhatsApp аутентифицирован`)
-      this.emit('authenticated')
-    })
-
+    this.client.on('authenticated', () => this.emit('authenticated'))
     this.client.on('auth_failure', msg => {
-      this.logger.error(`[ID: ${this.instanceId}] ❌ Ошибка аутентификации: ` + msg)
-      this.isInitializing = false
       this.isReady = false
+      this.isInitializing = false
       this.emit('auth_failure', msg)
     })
-
     this.client.on('disconnected', reason => {
-      this.logger.warn(`[ID: ${this.instanceId}] 🔌 WhatsApp отключен: ` + reason)
       this.isReady = false
       this.client = null
       this.emit('disconnected', reason)
@@ -98,11 +112,10 @@ export class WhatsAppService extends EventEmitter {
   async sendMessage (phone, message, media) {
     this.ensureReady()
     const chatId = phone.includes('@') ? phone : `${phone}@c.us`
-    this.logger.log(`[ID: ${this.instanceId}] Отправка на ${chatId}`)
 
     try {
-      if (media && (media.url || media.path || media.buffer)) {
-        let msgMedia
+      let msgMedia = null
+      if (media) {
         if (media.url) {
           msgMedia = await MessageMedia.fromUrl(media.url)
         } else if (media.path) {
@@ -114,30 +127,21 @@ export class WhatsAppService extends EventEmitter {
         } else if (media.buffer) {
           const b64 = media.buffer.toString('base64')
           msgMedia = new MessageMedia(media.mime, b64, media.filename || 'file')
-        } else {
-          throw new Error('Unsupported media object')
         }
-
-        const options = {}
-        if (message) {
-          options.caption = message
-        }
-        return this.client.sendMessage(chatId, msgMedia, options)
       }
 
+      if (msgMedia) {
+        return this.client.sendMessage(chatId, msgMedia, { caption: message })
+      }
       return this.client.sendMessage(chatId, message ?? '')
     } catch (error) {
-      this.logger.error(`[ID: ${this.instanceId}] Ошибка отправки на ${chatId}`, error)
+      this.logger.error('Ошибка отправки', error)
       throw error
     }
   }
 
   getStatus () {
-    return {
-      instanceId: this.instanceId,
-      isReady: this.isReady,
-      isInitializing: this.isInitializing,
-    }
+    return { instanceId: this.instanceId, isReady: this.isReady, isInitializing: this.isInitializing }
   }
 
   getInfo () {
@@ -147,17 +151,13 @@ export class WhatsAppService extends EventEmitter {
 
   ensureReady () {
     if (!this.isReady || !this.client) {
-      this.logger.warn(`[ID: ${this.instanceId}] Попытка действия до готовности клиента.`)
       throw new Error('Клиент WhatsApp не готов.')
     }
   }
 
   async destroy () {
-    this.logger.log(`[ID: ${this.instanceId}] Завершение работы...`)
     if (this.client) {
-      await this.client.destroy().catch(error =>
-        this.logger.error('Ошибка при уничтожении клиента', error),
-      )
+      await this.client.destroy().catch(error => this.logger.error('Ошибка destroy', error))
       this.client = null
     }
   }
