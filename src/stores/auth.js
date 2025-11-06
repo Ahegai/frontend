@@ -3,26 +3,30 @@ import api from '@/api/axios'
 
 const TOKEN_KEY = 'token'
 
-function getCookie (name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? decodeURIComponent(match[2]) : null
+// [ИЗМЕНЕНО] Используем localStorage
+function getTokenStorage (name) {
+  return localStorage.getItem(name)
 }
 
-function setCookie (name, value, days = 7) {
-  const maxAge = days ? `;max-age=${days * 24 * 60 * 60}` : ''
-  // eslint-disable-next-line unicorn/no-document-cookie
-  document.cookie = `${name}=${encodeURIComponent(value || '')}${maxAge};path=/`
+// [ИЗМЕНЕНО] Используем localStorage
+function setTokenStorage (name, value) {
+  if (value) {
+    localStorage.setItem(name, value)
+  } else {
+    localStorage.removeItem(name)
+  }
 }
 
-function deleteCookie (name) {
-  // eslint-disable-next-line unicorn/no-document-cookie
-  document.cookie = `${name}=;max-age=0;path=/`
+// [ИЗМЕНЕНО] Используем localStorage
+function deleteTokenStorage (name) {
+  localStorage.removeItem(name)
 }
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    token: getCookie(TOKEN_KEY) || null,
+    // [ИЗМЕНЕНО]
+    token: getTokenStorage(TOKEN_KEY) || null,
   }),
 
   getters: {
@@ -32,7 +36,7 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     init () {
       if (this.token) {
-        // token is stored in cookie; the API wrapper will read it from cookies
+        // token is stored in localStorage; the API wrapper will read it from there
       }
     },
 
@@ -40,12 +44,14 @@ export const useAuthStore = defineStore('auth', {
       this.token = token
       console.log(token)
       if (token) {
-        console.log('token set')
-        setCookie(TOKEN_KEY, token)
+        console.log('token set to localStorage')
+        // [ИЗМЕНЕНО]
+        setTokenStorage(TOKEN_KEY, token)
       } else {
-        // wrapper will stop sending token when cookie is deleted
-        console.log('token cleared')
-        deleteCookie(TOKEN_KEY)
+        // wrapper will stop sending token when localStorage item is deleted
+        console.log('token cleared from localStorage')
+        // [ИЗМЕНЕНО]
+        deleteTokenStorage(TOKEN_KEY)
       }
     },
 

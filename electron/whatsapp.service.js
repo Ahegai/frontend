@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import chromeFinder from '@perfsee/chrome-finder'
+import * as chromeFinder from '@perfsee/chrome-finder'
 import { app } from 'electron'
 import puppeteer from 'puppeteer'
 import qrcode from 'qrcode'
@@ -38,7 +38,7 @@ export class WhatsAppService extends EventEmitter {
       if (!dataPath) {
         dataPath = path.resolve(
           app.isPackaged
-            ? path.join(process.resourcesPath, 'app.asar.unpacked', 'dist-electron', 'sessions')
+            ? path.join(process.resourcesPath, 'sessions')
             : path.join(__dirname, 'sessions'),
         )
       }
@@ -47,7 +47,7 @@ export class WhatsAppService extends EventEmitter {
       }
 
       // --- executablePath для Puppeteer ---
-      let executablePath = await chromeFinder()
+      let executablePath = chromeFinder.findChrome()
       if (!executablePath) {
         // fallback на Chromium от Puppeteer
         executablePath = puppeteer.executablePath()

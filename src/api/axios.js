@@ -2,9 +2,9 @@ import axios from 'axios'
 
 const TOKEN_KEY = 'token'
 
-function getCookie (name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? decodeURIComponent(match[2]) : null
+// [ИЗМЕНЕНО] Используем localStorage
+function getTokenStorage (name) {
+  return localStorage.getItem(name)
 }
 
 const api = axios.create({
@@ -14,10 +14,11 @@ const api = axios.create({
   },
 })
 
-// Request interceptor: attach token from cookie if present
+// Request interceptor: attach token from localStorage if present
 api.interceptors.request.use(config => {
   try {
-    const token = getCookie(TOKEN_KEY)
+    // [ИЗМЕНЕНО]
+    const token = getTokenStorage(TOKEN_KEY)
     if (token) {
       config.headers = config.headers || {}
       config.headers.Authorization = `Bearer ${token}`

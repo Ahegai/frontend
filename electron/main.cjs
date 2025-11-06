@@ -28,7 +28,7 @@ function createWindow () {
   })
 
   if (app.isPackaged) {
-    mainWindow.loadFile(getResourcePath('../../dist/index.html'))
+    mainWindow.loadFile(getResourcePath('../dist/index.html'))
   } else {
     mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools()
