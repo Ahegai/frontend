@@ -56,15 +56,38 @@ export default defineConfig({
       vueTemplate: true,
       dts: false,
     }),
+
+    // ⚙️ Главное изменение — добавляем external в electron build
     electron([
       {
         entry: 'electron/main.cjs',
-        vite: { build: { rollupOptions: { input: 'electron/main.cjs', external: ['electron'] } } },
+        vite: {
+          build: {
+            rollupOptions: {
+              input: 'electron/main.cjs',
+              external: [
+                'electron',
+                'puppeteer',
+                'whatsapp-web.js',
+                '@perfsee/chrome-finder',
+                'fs',
+                'path',
+              ],
+            },
+          },
+        },
       },
       {
         entry: 'electron/preload.cjs',
-        format: 'cjs', // явно указываем CommonJS
-        vite: { build: { rollupOptions: { input: 'electron/preload.cjs', external: ['electron'] } } },
+        format: 'cjs',
+        vite: {
+          build: {
+            rollupOptions: {
+              input: 'electron/preload.cjs',
+              external: ['electron'],
+            },
+          },
+        },
       },
     ]),
   ],

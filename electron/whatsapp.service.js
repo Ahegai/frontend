@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as chromeFinder from '@perfsee/chrome-finder'
 import { app } from 'electron'
+import log from 'electron-log'
 import puppeteer from 'puppeteer'
 import qrcode from 'qrcode'
 import pkg from 'whatsapp-web.js'
@@ -23,7 +24,7 @@ export class WhatsAppService extends EventEmitter {
   constructor () {
     super()
     this.instanceId = Math.random().toString(36).slice(7)
-    this.logger.log(`[ID: ${this.instanceId}] WhatsAppService создан.`)
+    log.info(`[ID: ${this.instanceId}] WhatsAppService создан.`)
   }
 
   async initAuth (sessionsPath = null) {
@@ -45,21 +46,28 @@ export class WhatsAppService extends EventEmitter {
       if (!fs.existsSync(dataPath)) {
         fs.mkdirSync(dataPath, { recursive: true })
       }
+      log.info('Сессии хранятся в:', dataPath)
+      log.info('Прод сессияя хранятся в:', process.resourcesPath)
 
-      // --- executablePath для Puppeteer ---
-      let executablePath = chromeFinder.findChrome()
-      if (!executablePath) {
-        // fallback на Chromium от Puppeteer
+      let executablePath
+
+      try {
+        const chromeInfo = await chromeFinder.findChrome()
+        executablePath = chromeInfo?.executablePath || puppeteer.executablePath()
+        log.info(`[ID: ${this.instanceId}] Найден Chrome через chrome-finder:`, executablePath)
+      } catch {
         executablePath = puppeteer.executablePath()
+        log.info(`[ID: ${this.instanceId}] Используем Chromium Puppeteer:`, executablePath)
       }
-      this.logger.log(`[ID: ${this.instanceId}] Используем Chromium:`, executablePath)
+      log.info(`[ID: ${this.instanceId}] Используем Chromium:`, executablePath)
+      log.info('Chromium хранятся в:', executablePath)
 
       // --- инициализация WhatsAppClient ---
       this.client = new WhatsAppClient({
         authStrategy: new LocalAuth({ dataPath }),
         puppeteer: {
           executablePath,
-          headless: true,
+          headless: false,
           args: ['--no-sandbox', '--disable-setuid-sandbox'],
           timeout: 60_000,
         },
@@ -67,8 +75,10 @@ export class WhatsAppService extends EventEmitter {
 
       this.setupEventHandlers()
       await this.client.initialize()
+      log.info('Сессии хранятся в:', dataPath)
+      log.info('Client: ', this.client?.info)
     } catch (error) {
-      this.logger.error(`[ID: ${this.instanceId}] Ошибка инициализации`, error)
+      log.error(`[ID: ${this.instanceId}] Ошибка инициализации`, error)
       this.isInitializing = false
       this.isReady = false
       this.emit('error', error.message)
@@ -86,7 +96,7 @@ export class WhatsAppService extends EventEmitter {
         const qrImage = await qrcode.toDataURL(qr)
         this.emit('qr', qrImage)
       } catch (error) {
-        this.logger.error('Ошибка QR-кода', error)
+        log.error('Ошибка QR-кода', error)
       }
     })
 
@@ -135,7 +145,7 @@ export class WhatsAppService extends EventEmitter {
       }
       return this.client.sendMessage(chatId, message ?? '')
     } catch (error) {
-      this.logger.error('Ошибка отправки', error)
+      log.error('Ошибка отправки', error)
       throw error
     }
   }
@@ -146,6 +156,7 @@ export class WhatsAppService extends EventEmitter {
 
   getInfo () {
     this.ensureReady()
+    log.info(this.client)
     return this.client?.info ?? null
   }
 
@@ -157,7 +168,7 @@ export class WhatsAppService extends EventEmitter {
 
   async destroy () {
     if (this.client) {
-      await this.client.destroy().catch(error => this.logger.error('Ошибка destroy', error))
+      await this.client.destroy().catch(error => log.error('Ошибка destroy', error))
       this.client = null
     }
   }

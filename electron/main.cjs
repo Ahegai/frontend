@@ -4,7 +4,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const { WhatsAppService } = require('./whatsapp.service.js')
 
 let mainWindow
-const whatsappService = new WhatsAppService()
+let whatsappService
 
 function getResourcePath (relativePath) {
   if (app.isPackaged) {
@@ -47,7 +47,9 @@ function setupIpcHandlers () {
 
   ipcMain.handle('whatsapp:init', async () => {
     try {
-      await whatsappService.initAuth(getResourcePath('sessions'))
+      await whatsappService.initAuth()
+      // await whatsappService.initAuth(getResourcePath('sessions'))
+      // await whatsappService.initAuth(path.join(process.resourcesPath, 'sessions'))
       return { success: true, message: 'Инициализация запущена' }
     } catch (error) {
       return { success: false, message: error.message }
@@ -75,6 +77,7 @@ function setupIpcHandlers () {
 }
 
 app.whenReady().then(() => {
+  whatsappService = new WhatsAppService()
   setupIpcHandlers()
   createWindow()
   app.on('activate', () => {

@@ -7,14 +7,17 @@
     "dev": "vite",
     "build:frontend": "vite build",
     "build:app": "npm run build:frontend && electron-builder",
+    "build:win": "npm run build:frontend && electron-builder --win",
     "preview": "vite preview",
     "lint": "eslint . --fix"
   },
   "dependencies": {
     "@fontsource/roboto": "5.2.7",
     "@mdi/font": "7.4.47",
+    "@perfsee/chrome-finder": "^1.14.2",
     "axios": "^1.13.2",
     "bufferutil": "^4.0.9",
+    "electron-log": "^5.4.3",
     "pinia": "^3.0.3",
     "puppeteer": "^24.29.0",
     "qrcode": "^1.5.4",
@@ -52,6 +55,7 @@
       "dist-electron/preload.js",
       "node_modules/whatsapp-web.js/**",
       "node_modules/puppeteer/**",
+      "node_modules/@perfsee/chrome-finder/**",
       "node_modules/bufferutil/**",
       "node_modules/utf-8-validate/**",
       "dist-electron/sessions/**"
@@ -69,11 +73,15 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "defaultArch": "arm64"
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ]
     }
   }
