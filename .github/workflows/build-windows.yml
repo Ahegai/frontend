@@ -8,15 +8,24 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - run: npm install
+
+      # Собираем фронт
       - run: npm run build:frontend
+
+      # Собираем Windows инсталлятор
       - run: npx electron-builder --win
-      - uses: actions/upload-artifact@v3
+
+      # Загружаем артефакт (fix: v4)
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: release/*.exe
