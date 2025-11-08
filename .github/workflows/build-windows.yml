@@ -22,7 +22,7 @@ jobs:
       - run: npm run build:frontend
 
       # Собираем Windows инсталлятор
-      - run: npx electron-builder --win
+      - run: npx electron-builder --win --publish never
 
       # Загружаем артефакт (fix: v4)
       - uses: actions/upload-artifact@v4
